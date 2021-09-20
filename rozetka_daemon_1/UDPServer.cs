@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
 using System.Globalization;
@@ -16,17 +17,24 @@ namespace rozetka_daemon_1
 
         private Socket _socket;
         private EndPoint _ep;
+        private TimerCallback timeCb;
+        private Timer time;
         private float data_float_amper = 0, amperage_sum = 0;
         private int device_on_data_recieved = 0;
-        private bool isOn;
+        private bool isOn, isPowermonOn = true;
         private DB database;
-        private MySqlCommand command1, command2;
+        private MySqlCommand command_insert_events_OnOrOff, command_insert_data, command_insert_events_isPowerMonOn;
         private byte[] _buffer_recv;
         private ArraySegment<byte> _buffer_recv_segment;
+        
 
         public void Initialize()
         {
             database = new DB();
+            timeCb = new TimerCallback(Device_State);
+            time = new Timer(timeCb, null, 15000, 15000);
+
+
             try
             {
                 database.openConnection();
@@ -35,14 +43,21 @@ namespace rozetka_daemon_1
             {
                 Console.WriteLine(ex.Message);
             }
+
+
             _ep = new IPEndPoint(IPAddress.Any, PORT);
-            command1 = new MySqlCommand("INSERT INTO `events` (`id_event`, `id_device`, `time_event`, `id_type`, `amperage`) VALUES (NULL, '1', @datetime, @type, @amper);", database.getConnection());
-            command2 = new MySqlCommand("INSERT INTO `data` (`id_data`, `date_data`, `value_data`) VALUES (NULL, @date, @value);", database.getConnection());
+            command_insert_events_OnOrOff = new MySqlCommand("INSERT INTO `events` (`id_event`, `id_device`, `time_event`, `id_type`, `amperage`) VALUES (NULL, '1', @datetime, @type, @amper);", database.getConnection());
+            command_insert_data = new MySqlCommand("INSERT INTO `data` (`id_data`, `date_data`, `value_data`) VALUES (NULL, @date, @value);", database.getConnection());
+            command_insert_events_isPowerMonOn = new MySqlCommand("INSERT INTO `events` (`id_event`, `id_device`, `time_event`, `id_type`, `amperage`) VALUES (NULL, '1', @datetime, @type, @amper);", database.getConnection());
             _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
             _socket.Bind(_ep);
         }
 
+        
+        /// <summary>
+        /// Recieving data from PowerMon
+        /// </summary>
         public void StartMessageLoop()
         {
             _ = Task.Run(async () =>
@@ -53,54 +68,108 @@ namespace rozetka_daemon_1
                     var data = new StringBuilder();
                     _buffer_recv = new byte[256];
                     _buffer_recv_segment = new ArraySegment<byte>(_buffer_recv);
+
                     
+                    // Recieving data
                     res = await _socket.ReceiveMessageFromAsync(_buffer_recv_segment, SocketFlags.None, _ep);
+
+
+                    // Checking if PowerMon turned on or it already is. Timer reset
+                    if (isPowermonOn == false)
+                    {
+                        isPowermonOn = true;
+                        command_insert_events_isPowerMonOn.Parameters.Add("@datetime", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                        command_insert_events_isPowerMonOn.Parameters.Add("@type", MySqlDbType.Int32).Value = 3;
+                        command_insert_events_isPowerMonOn.Parameters.Add("@amper", MySqlDbType.Float).Value = null;
+                        command_insert_events_isPowerMonOn.ExecuteNonQuery();
+                        command_insert_events_isPowerMonOn.Parameters.Clear();
+                        Console.WriteLine("PowerMon is On");
+                    }
+                    time.Change(15000, 15000);
+
+
+                    // Converting recieved data
                     try
                     {
                         data.Append(Encoding.UTF8.GetString(_buffer_recv_segment.Array));
                         data_float_amper = float.Parse(data.ToString(), CultureInfo.InvariantCulture.NumberFormat) * 10;
                     }
                     catch {};
-                    command2.Parameters.Add("@date", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                    command2.Parameters.Add("@value", MySqlDbType.Float).Value = data_float_amper;
-                    command2.ExecuteNonQuery();
+
+
+                    // Data for calculating the average amperage
                     if (isOn)
                     {
                         amperage_sum += data_float_amper;
                         device_on_data_recieved++;
                     }
 
-                    //Включение прибора
+
+                    // Adding parameters and making SQL query for sending soft data
+                    command_insert_data.Parameters.Add("@date", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                    command_insert_data.Parameters.Add("@value", MySqlDbType.Float).Value = data_float_amper;
+                    command_insert_data.ExecuteNonQuery();
+
+
+                    // Device is turned on. Adding parameters and making SQL query for sending info about it
                     if (data_float_amper >= 0.72 && isOn == false)
                     {
                         isOn = true;
-                        command1.Parameters.Add("@datetime", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                        command1.Parameters.Add("@type", MySqlDbType.Int32).Value = 1;
-                        command1.Parameters.Add("@amper", MySqlDbType.Float).Value = null;
-                        command1.ExecuteNonQuery();
+                        command_insert_events_OnOrOff.Parameters.Add("@datetime", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                        command_insert_events_OnOrOff.Parameters.Add("@type", MySqlDbType.Int32).Value = 1;
+                        command_insert_events_OnOrOff.Parameters.Add("@amper", MySqlDbType.Float).Value = null;
+                        command_insert_events_OnOrOff.ExecuteNonQuery();
+                        Console.WriteLine("Device is On");
                     }
 
-                    //Выключение прибора
+
+                    // Device is turned off. Adding parameters and making SQL query for sending info about it + average amperage
                     else if (data_float_amper < 0.72 && isOn == true)
                     {
                         isOn = false;
-                        command1.Parameters.Add("@datetime", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                        command1.Parameters.Add("@type", MySqlDbType.Int32).Value = 2;
-                        command1.Parameters.Add("@amper", MySqlDbType.Float).Value = amperage_sum / device_on_data_recieved;
+                        command_insert_events_OnOrOff.Parameters.Add("@datetime", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                        command_insert_events_OnOrOff.Parameters.Add("@type", MySqlDbType.Int32).Value = 2;
+                        command_insert_events_OnOrOff.Parameters.Add("@amper", MySqlDbType.Float).Value = amperage_sum / device_on_data_recieved;
+                        Console.WriteLine("Device is Off: " + (amperage_sum / device_on_data_recieved).ToString());
                         amperage_sum = 0;
                         device_on_data_recieved = 0;
-                        command1.ExecuteNonQuery();
+                        command_insert_events_OnOrOff.ExecuteNonQuery();
                     }
-                    command1.Parameters.Clear();
-                    command2.Parameters.Clear();
+
+                    // Clearing parameters for SQL queries
+                    command_insert_events_OnOrOff.Parameters.Clear();
+                    command_insert_data.Parameters.Clear();
                 }
             });
         }
 
-        public async Task SendTo(EndPoint recipient, byte[] data)
+        /// <summary>
+        /// Fires if data does not arrive for more than 15 seconds
+        /// </summary>
+        /// <param name="obj"></param>
+        public void Device_State(object obj)
         {
-            var s = new ArraySegment<byte>(data);
-            await _socket.SendToAsync(s, SocketFlags.None, recipient);
+            if (isPowermonOn == true)
+            {
+                isPowermonOn = false;
+                command_insert_events_isPowerMonOn.Parameters.Add("@datetime", MySqlDbType.DateTime).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                command_insert_events_isPowerMonOn.Parameters.Add("@type", MySqlDbType.Int32).Value = 4;
+                if (isOn)
+                {
+                    command_insert_events_isPowerMonOn.Parameters.Add("@amper", MySqlDbType.Float).Value = amperage_sum / device_on_data_recieved;
+                    Console.WriteLine("PowerMon is Off: " + (amperage_sum / device_on_data_recieved).ToString());
+                    amperage_sum = 0;
+                    device_on_data_recieved = 0;
+                    isOn = false;
+                }
+                else
+                {
+                    command_insert_events_isPowerMonOn.Parameters.Add("@amper", MySqlDbType.Float).Value = null;
+                    Console.WriteLine("PowerMon is Off: " + (amperage_sum / device_on_data_recieved).ToString());
+                }
+                    command_insert_events_isPowerMonOn.ExecuteNonQuery();
+                command_insert_events_isPowerMonOn.Parameters.Clear();
+            }
         }
     }
 }
