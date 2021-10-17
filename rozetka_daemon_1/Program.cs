@@ -17,8 +17,6 @@ namespace rozetka_daemon_1
             server.Initialize();
             server.StartMessageLoop();
             Console.ReadLine();
-
         }
-
     }
 }
