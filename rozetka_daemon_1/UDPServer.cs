@@ -36,10 +36,6 @@ namespace rozetka_daemon_1
             _socket.Bind(_ep);
         }
 
-
-        /// <summary>
-        /// Recieving data from PowerMon
-        /// </summary>
         public void StartMessageLoop()
         {
             var powermonId = 0;
@@ -57,7 +53,6 @@ namespace rozetka_daemon_1
                     // Recieving data
                     res = await _socket.ReceiveMessageFromAsync(_buffer_recv_segment, SocketFlags.None, _ep);
 
-                    // Converting recieved data
                     try
                     {
                         data.Append(Encoding.UTF8.GetString(_buffer_recv_segment.Array));
@@ -73,7 +68,6 @@ namespace rozetka_daemon_1
             });
         
         }
-
 
         public void AddDevice(int id) 
         {

@@ -10,7 +10,7 @@ namespace rozetka_daemon_1
 {
     abstract class DB
     {
-        private readonly static string connectionInfo = "Database=rozetka;Data Source=92.255.198.115;User Id=work;Password=1234;port=22873";
+        private readonly static string connectionInfo = "Database=;Data Source=;User Id=;Password=;";
 
         public static void InsertIntoEvents_DeviceIsOnOrOff(int id, bool isOn, float value)
         {
@@ -35,7 +35,6 @@ namespace rozetka_daemon_1
             }
 
         }
-
 
         public static void InsertIntoData(int id, float value)
         {
