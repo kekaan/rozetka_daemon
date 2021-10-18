@@ -4,16 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
-using MySql.Data.MySqlClient;
 using System.Globalization;
 
 namespace rozetka_daemon_1
 {
     class UDPServer
     {
-        public const int PORT = 8081;
+        private const int PORT = 8081;
 
         private Socket _socket;
         private EndPoint _ep;

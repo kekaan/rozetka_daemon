@@ -30,10 +30,11 @@ namespace rozetka_daemon_1
 
         public void DataProcessing(float value)
         {
+            var db = new DB();
             if (!isPowermonOn)
             {
                 isPowermonOn = true;
-                DB.InsertIntoEvents_PowermonIsOnOrOff(Id, isPowermonOn, isOn, 0);
+                db.InsertIntoEvents_PowermonIsOnOrOff(Id, isPowermonOn, isOn, 0);
             }
 
             time.Change(DataWaitingInSeconds, DataWaitingInSeconds);
@@ -44,7 +45,7 @@ namespace rozetka_daemon_1
                 recievedDataWhileOn++;
             }
 
-            DB.InsertIntoData(Id, value);
+            db.InsertIntoData(Id, value);
 
             if (value >= refValue && !isOn)
                 DeviceTurninOn();
@@ -57,7 +58,8 @@ namespace rozetka_daemon_1
             if (isPowermonOn)
             {
                 isPowermonOn = false;
-                DB.InsertIntoEvents_PowermonIsOnOrOff(Id, isPowermonOn, isOn, GetAverageAmperage());
+                var db = new DB();
+                db.InsertIntoEvents_PowermonIsOnOrOff(Id, isPowermonOn, isOn, GetAverageAmperage());
                 amperageSum = 0;
                 recievedDataWhileOn = 0;
                 isOn = false;
@@ -67,13 +69,15 @@ namespace rozetka_daemon_1
         public void DeviceTurninOn()
         {
             isOn = true;
-            DB.InsertIntoEvents_DeviceIsOnOrOff(Id, isOn, 0);
+            var db = new DB();
+            db.InsertIntoEvents_DeviceIsOnOrOff(Id, isOn, 0);
         }
 
         public void DeviceTurningOff()
         {
             isOn = false;
-            DB.InsertIntoEvents_DeviceIsOnOrOff(Id, isOn, GetAverageAmperage());
+            var db = new DB();
+            db.InsertIntoEvents_DeviceIsOnOrOff(Id, isOn, GetAverageAmperage());
             amperageSum = 0;
             recievedDataWhileOn = 0;
         }

@@ -4,15 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace rozetka_daemon_1
 {
     class DB
     {
-        private readonly static string connectionInfo = "Database=;Data Source=;User Id=;Password=;";
+        private readonly string connectionInfo = "Database=;Data Source=;User Id=;Password=;";
 
-        public static void InsertIntoEvents_DeviceIsOnOrOff(int id, bool isOn, float value)
+        public void InsertIntoEvents_DeviceIsOnOrOff(int id, bool isOn, float value)
         {
             using (var connection = new MySqlConnection(connectionInfo))
             {
@@ -36,7 +35,7 @@ namespace rozetka_daemon_1
 
         }
 
-        public static void InsertIntoData(int id, float value)
+        public void InsertIntoData(int id, float value)
         {
             using (var connection = new MySqlConnection(connectionInfo))
             {
@@ -51,7 +50,7 @@ namespace rozetka_daemon_1
         }
 
 
-        public static void InsertIntoEvents_PowermonIsOnOrOff(int id, bool isPowermonOn, bool isOn, float value)
+        public void InsertIntoEvents_PowermonIsOnOrOff(int id, bool isPowermonOn, bool isOn, float value)
         {
             using (var connection = new MySqlConnection(connectionInfo))
             {
