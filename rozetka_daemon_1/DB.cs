@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace rozetka_daemon_1
 {
-    abstract class DB
+    class DB
     {
         private readonly static string connectionInfo = "Database=;Data Source=;User Id=;Password=;";
 

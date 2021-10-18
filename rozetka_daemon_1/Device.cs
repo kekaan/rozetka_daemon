@@ -13,7 +13,7 @@ namespace rozetka_daemon_1
         private const int DataWaitingInSeconds = 15000;
         //private static int id, quantity = 0;
         private float amperageSum = 0, refValue = 0.72f;
-        private int recievedDataWhileIsOn = 0;
+        private int recievedDataWhileOn = 0;
         private bool isOn, isPowermonOn = true;
         private readonly TimerCallback timeCallback;
         private readonly Timer time;
@@ -41,7 +41,7 @@ namespace rozetka_daemon_1
             if (isOn)
             {
                 amperageSum += value;
-                recievedDataWhileIsOn++;
+                recievedDataWhileOn++;
             }
 
             DB.InsertIntoData(Id, value);
@@ -59,7 +59,7 @@ namespace rozetka_daemon_1
                 isPowermonOn = false;
                 DB.InsertIntoEvents_PowermonIsOnOrOff(Id, isPowermonOn, isOn, GetAverageAmperage());
                 amperageSum = 0;
-                recievedDataWhileIsOn = 0;
+                recievedDataWhileOn = 0;
                 isOn = false;
             }
         }
@@ -75,12 +75,12 @@ namespace rozetka_daemon_1
             isOn = false;
             DB.InsertIntoEvents_DeviceIsOnOrOff(Id, isOn, GetAverageAmperage());
             amperageSum = 0;
-            recievedDataWhileIsOn = 0;
+            recievedDataWhileOn = 0;
         }
 
         float GetAverageAmperage()
         {
-            return amperageSum / recievedDataWhileIsOn;
+            return amperageSum / recievedDataWhileOn;
         }
     }
 }
